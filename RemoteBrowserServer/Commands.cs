@@ -8,7 +8,11 @@ namespace RemoteBrowserServer
     {
         public static void LISTDIRECTORY(TCPClient requester, string dir)
         {
-            var dirinfo = new DirectoryInfo(dir);
+            DirectoryInfo dirinfo;
+            if (dir.Length != 2)
+                dirinfo = new DirectoryInfo(dir);
+            else
+                dirinfo = new DirectoryInfo(dir + "\\");
             FileInfo[] files = null;
             DirectoryInfo[] dirs = null;
             List<string> dnames = new List<string>();
@@ -19,7 +23,7 @@ namespace RemoteBrowserServer
             }
             catch { requester.SendPackage(new TcpPackage("ACCESS DENIED")); }
             string data = "Files:";
-            if (new DirectoryInfo(dir).Parent != null)
+            if (new DirectoryInfo(dir).Parent != null && dir.Length != 2)
                 dnames.Add("..");
             foreach (var d in dirs)
                 dnames.Add(d.Name);

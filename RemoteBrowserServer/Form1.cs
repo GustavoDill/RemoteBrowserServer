@@ -47,7 +47,7 @@ namespace RemoteBrowserServer
         }
         void Log(string msg)
         {
-            console.Log("[" + DateTime.Now.Hour.ToString() + ":" + DateTime.Now.Minute.ToString() + ":" + DateTime.Now.Second.ToString() + "] " + msg);
+            console.Log("[" + DateTime.Now.Hour.ToString().PadLeft(2, '0') + ":" + DateTime.Now.Minute.ToString().PadLeft(2, '0') + ":" + DateTime.Now.Second.ToString().PadLeft(2, '0') + "] " + msg);
         }
         private void Server_ClientDisconnected(object sender, TCPServer.ClientConnectionArgs e)
         {
