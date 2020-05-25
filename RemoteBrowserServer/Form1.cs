@@ -63,7 +63,7 @@ namespace RemoteBrowserServer
             e.Client.ClientSocket.ReceiveTimeout = tmout;
             if (connectCode != "RemoteBrowser#CODE#")
             {
-                e.Client.SendPackage("Code rejected");
+                SendPackage(e.Client, "Code rejected");
                 server.DisconnectClient(e.Client);
                 Log($"Client Code rejected; {{ Host: {e.Client.Ip} Port: {e.Client.Port}}}");
             }
@@ -72,6 +72,14 @@ namespace RemoteBrowserServer
                 Log($"Client Code accepted; {{ Host: {e.Client.Ip} Port: {e.Client.Port}}}");
                 monitorThreads.Add(new Thread(new ParameterizedThreadStart(MonitorPackages))); monitorThreads.Last().Start(e.Client);
             }
+        }
+        void SendPackage(TCPClient client, TcpPackage package)
+        {
+            try
+            {
+                client.SendPackage(package);
+            }
+            catch { Log($"Error sending package to client {{Host: {client.Ip} Port: {client.Port}}}"); client.Disconnect(); }
         }
         public void OnClientShutdown(TCPClient client, Thread monitorThread)
         {
