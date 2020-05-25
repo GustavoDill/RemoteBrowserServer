@@ -21,7 +21,7 @@ namespace RemoteBrowserServer
         {
             var ips = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
             foreach (var ip in ips.AddressList)
-                if (Regex.IsMatch(ip.ToString(), @"(192\.168|10\.0)\.\d+\.\d+"))
+                if (Regex.IsMatch(ip.ToString(), @"(192\.168|10\.0)\.0\.\d+"))
                     textBox1.Text = ip.ToString();
         }
         TCPServer server;
@@ -43,23 +43,41 @@ namespace RemoteBrowserServer
                     button1.Text = "Start";
                     break;
             }
+            Log(button1.Text != "Start" ? "Server started" : "Server stopped");
         }
-
+        void Log(string msg)
+        {
+            console.Log("[" + DateTime.Now.Hour.ToString() + ":" + DateTime.Now.Minute.ToString() + ":" + DateTime.Now.Second.ToString() + "] " + msg);
+        }
         private void Server_ClientDisconnected(object sender, TCPServer.ClientConnectionArgs e)
         {
 
         }
         private void Server_ClientConnected(object sender, TCPServer.ClientConnectionArgs e)
         {
+            Log("Client connection { Host: " + e.Client.Ip.ToString() + " Port: " + e.Client.Port.ToString() + " }");
             var tmout = e.Client.ClientSocket.ReceiveTimeout;
-            e.Client.ClientSocket.ReceiveTimeout = 3000;
+            e.Client.ClientSocket.ReceiveTimeout = 5000;
             var connectCode = "NULL";
             try { connectCode = e.Client.ReceiveString(); } catch { }
             e.Client.ClientSocket.ReceiveTimeout = tmout;
             if (connectCode != "RemoteBrowser#CODE#")
-                server.DisconnectClient(e.Client, "Code rejected");
+            {
+                e.Client.SendPackage("Code rejected");
+                server.DisconnectClient(e.Client);
+                Log($"Client Code rejected; {{ Host: {e.Client.Ip} Port: {e.Client.Port}}}");
+            }
             else
-            { monitorThreads.Add(new Thread(new ParameterizedThreadStart(MonitorPackages))); monitorThreads.Last().Start(e.Client); }
+            {
+                Log($"Client Code accepted; {{ Host: {e.Client.Ip} Port: {e.Client.Port}}}");
+                monitorThreads.Add(new Thread(new ParameterizedThreadStart(MonitorPackages))); monitorThreads.Last().Start(e.Client);
+            }
+        }
+        public void OnClientShutdown(TCPClient client, Thread monitorThread)
+        {
+            Log($"Client disconnected {{Host: {client.Ip} Port: {client.Port}}}");
+            monitorThread.Abort();
+            server.DisconnectClient(client);
         }
         List<Thread> monitorThreads = new List<Thread>();
         void MonitorPackages(object tcpClient)
@@ -68,11 +86,16 @@ namespace RemoteBrowserServer
             {
                 var client = (TCPClient)tcpClient;
                 TcpPackage package;
-                try { package = client.ReceivePackage(); } catch { Application.Restart(); return; }
+                try { package = client.ReceivePackage(); } catch { OnClientShutdown(client, Thread.CurrentThread); return; }
+                if (package == "CLIENT-SHUTDOWN")
+                {
+                    OnClientShutdown(client, Thread.CurrentThread);
+                }
                 var data = package.ToString();
                 var m = Regex.Match(data, @"([\w\-\d]+)( ?\: ?""([\w\d\-\\/% \*\+\{\}\(\)\[\]\t\r:'""\|@\.]+)"")?");
                 var cmd = m.Groups[1].Value.Replace("-", "");
                 var arg = m.Groups[3].Value;
+                Log($"Client request: {{Command: \"{cmd}\" Arg: \"{arg}\"}} from {{Host: {client.Ip} Port: {client.Port}}}");
                 if (string.IsNullOrEmpty(arg))
                 {
                     typeof(Commands).GetMethod(cmd).Invoke(null, new object[] { client });
