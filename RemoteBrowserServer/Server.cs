@@ -1,6 +1,7 @@
 ﻿using CSharpExtendedCommands.Web.Communication;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -8,13 +9,15 @@ using System.Windows.Forms;
 
 namespace RemoteBrowserServer
 {
-    public partial class Form1 : Form
+    public partial class Server : Form
     {
-        public Form1()
+        public Server()
         {
             InitializeComponent();
             CheckForIllegalCrossThreadCalls = false;
+            Commands.console = console;
             Load += Form1_Load;
+            notifyIcon1.Icon = Icon;
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -40,14 +43,21 @@ namespace RemoteBrowserServer
                     break;
                 case "Stop":
                     server?.Shutdown();
+                    for (int i = 0; i < monitorThreads.Count; i++)
+                        monitorThreads[i].Abort();
+                    monitorThreads.Clear();
                     button1.Text = "Start";
                     break;
             }
-            Log(button1.Text != "Start" ? "Server started" : "Server stopped");
+            Log(button1.Text != "Start" ? "Server started" : "Server stopped", button1.Text != "Start" ? Color.Green : Color.Red);
         }
         void Log(string msg)
         {
-            console.Log("[" + DateTime.Now.Hour.ToString().PadLeft(2, '0') + ":" + DateTime.Now.Minute.ToString().PadLeft(2, '0') + ":" + DateTime.Now.Second.ToString().PadLeft(2, '0') + "] " + msg);
+            Commands.Log(msg);
+        }
+        void Log(string msg, Color color, bool doNewLine = true)
+        {
+            Commands.Log(msg, color, doNewLine);
         }
         private void Server_ClientDisconnected(object sender, TCPServer.ClientConnectionArgs e)
         {
@@ -55,7 +65,7 @@ namespace RemoteBrowserServer
         }
         private void Server_ClientConnected(object sender, TCPServer.ClientConnectionArgs e)
         {
-            Log("Client connection { Host: " + e.Client.Ip.ToString() + " Port: " + e.Client.Port.ToString() + " }");
+            Log("Client connection { Host: " + e.Client.Ip.ToString() + " Port: " + e.Client.Port.ToString() + " }", Color.Orange);
             var tmout = e.Client.ClientSocket.ReceiveTimeout;
             e.Client.ClientSocket.ReceiveTimeout = 5000;
             var connectCode = "NULL";
@@ -83,7 +93,8 @@ namespace RemoteBrowserServer
         }
         public void OnClientShutdown(TCPClient client, Thread monitorThread)
         {
-            Log($"Client disconnected {{Host: {client.Ip} Port: {client.Port}}}");
+            if (!closing)
+                Log($"Client disconnected {{Host: {client.Ip} Port: {client.Port}}}", Color.DarkRed);
             monitorThread.Abort();
             server.DisconnectClient(client);
         }
@@ -100,18 +111,14 @@ namespace RemoteBrowserServer
                     OnClientShutdown(client, Thread.CurrentThread);
                 }
                 var data = package.ToString();
-                var m = Regex.Match(data, @"([\w\-\d]+)( ?\: ?""([\w\d\-\\/% \*\+\{\}\(\)\[\]\t\r:'""\|@\.]+)"")?");
+                var m = Regex.Match(data, @"([\w\-\d]+)( ?\: ?""([\w\d\-\\/% \*\+\{\}\(\)\[\]\t\r$:'""\|@\.]+)"")?");
                 var cmd = m.Groups[1].Value.Replace("-", "");
                 var arg = m.Groups[3].Value;
                 Log($"Client request: {{Command: \"{cmd}\" Arg: \"{arg}\"}} from {{Host: {client.Ip} Port: {client.Port}}}");
                 if (string.IsNullOrEmpty(arg))
-                {
                     typeof(Commands).GetMethod(cmd).Invoke(null, new object[] { client });
-                }
                 else
-                {
                     typeof(Commands).GetMethod(cmd).Invoke(null, new object[] { client, arg });
-                }
                 Thread.Sleep(500);
             }
         }
@@ -124,6 +131,40 @@ namespace RemoteBrowserServer
         private void Form1_Shown(object sender, EventArgs e)
         {
             button1.PerformClick();
+            Size workSize = new Size(Size.Width, Size.Height);
+            button1.Size = new Size((workSize.Width - 26 - 26) / 2 - 26, button1.Height);
+            button2.Size = new Size(button1.Size.Width, button2.Height);
+            button2.Location = new Point(button1.Location.X + button1.Size.Width + 18, button2.Location.Y);
+            button2.Location = new Point(console.Size.Width + console.Location.X - button2.Size.Width, button2.Location.Y);
+        }
+        bool closing = false;
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (server.Running)
+            {
+                closing = true;
+                server?.Shutdown();
+            }
+        }
+
+        private void Server_SizeChanged(object sender, EventArgs e)
+        {
+            Size workSize = new Size(Size.Width, Size.Height);
+            button1.Size = new Size((workSize.Width - 26 - 26) / 2 - 26, button1.Height);
+            button2.Size = new Size(button1.Size.Width, button2.Height);
+            button2.Location = new Point(button1.Location.X + button1.Size.Width + 18, button2.Location.Y);
+            button2.Location = new Point(console.Size.Width + console.Location.X - button2.Size.Width, button2.Location.Y);
+        }
+        private void button2_Click_1(object sender, EventArgs e)
+        {
+            notifyIcon1.Visible = true;
+            Hide();
+        }
+
+        private void notifyIcon1_DoubleClick(object sender, EventArgs e)
+        {
+            notifyIcon1.Visible = false;
+            Show();
         }
     }
 }
