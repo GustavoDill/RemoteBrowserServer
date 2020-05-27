@@ -166,5 +166,10 @@ namespace RemoteBrowserServer
             notifyIcon1.Visible = false;
             Show();
         }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            console.Clear();
+        }
     }
 }
