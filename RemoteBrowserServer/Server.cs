@@ -33,19 +33,11 @@ namespace RemoteBrowserServer
             switch (((Button)sender).Text)
             {
                 case "Start":
-                    server = new TCPServer(textBox1.Text, ushort.Parse(textBox2.Text));
-                    server.AutoRelistenForMessages = false;
-                    server.BeginReceiveOnConnection = false;
-                    server.ClientConnected += Server_ClientConnected;
-                    server.ClientDisconnected += Server_ClientDisconnected;
-                    server.Start();
+                    Start();
                     button1.Text = "Stop";
                     break;
                 case "Stop":
-                    server?.Shutdown();
-                    for (int i = 0; i < monitorThreads.Count; i++)
-                        monitorThreads[i].Abort();
-                    monitorThreads.Clear();
+                    Shutdown();
                     button1.Text = "Start";
                     break;
             }
@@ -105,21 +97,25 @@ namespace RemoteBrowserServer
             {
                 var client = (TCPClient)tcpClient;
                 TcpPackage package;
-                try { package = client.ReceivePackage(); } catch { OnClientShutdown(client, Thread.CurrentThread); return; }
-                if (package == "CLIENT-SHUTDOWN")
+                try
                 {
-                    OnClientShutdown(client, Thread.CurrentThread);
+                    package = client.ReceivePackage();
+                    if (package == "CLIENT-SHUTDOWN")
+                    {
+                        OnClientShutdown(client, Thread.CurrentThread);
+                    }
+                    var data = package.ToString();
+                    var m = Regex.Match(data, @"([\w\-\d]+)( ?\: ?""([\w\d\-\\/% \*\+\{\}\(\)\[\]\t\r\#$:'""\|@\.]+)"")?");
+                    var cmd = m.Groups[1].Value.Replace("-", "");
+                    var arg = m.Groups[3].Value;
+                    Log($"Client request: {{Command: \"{cmd}\" Arg: \"{arg}\"}} from {{Host: {client.Ip} Port: {client.Port}}}");
+                    if (string.IsNullOrEmpty(arg))
+                        typeof(Commands).GetMethod(cmd).Invoke(null, new object[] { client });
+                    else
+                        typeof(Commands).GetMethod(cmd).Invoke(null, new object[] { client, arg });
+                    Thread.Sleep(500);
                 }
-                var data = package.ToString();
-                var m = Regex.Match(data, @"([\w\-\d]+)( ?\: ?""([\w\d\-\\/% \*\+\{\}\(\)\[\]\t\r$:'""\|@\.]+)"")?");
-                var cmd = m.Groups[1].Value.Replace("-", "");
-                var arg = m.Groups[3].Value;
-                Log($"Client request: {{Command: \"{cmd}\" Arg: \"{arg}\"}} from {{Host: {client.Ip} Port: {client.Port}}}");
-                if (string.IsNullOrEmpty(arg))
-                    typeof(Commands).GetMethod(cmd).Invoke(null, new object[] { client });
-                else
-                    typeof(Commands).GetMethod(cmd).Invoke(null, new object[] { client, arg });
-                Thread.Sleep(500);
+                catch { OnClientShutdown(client, Thread.CurrentThread); return; }
             }
         }
 
@@ -130,17 +126,36 @@ namespace RemoteBrowserServer
 
         private void Form1_Shown(object sender, EventArgs e)
         {
-            button1.PerformClick();
+            Opacity = 0;
+            var args = Environment.GetCommandLineArgs();
+            if (args.Contains("--hidden"))
+            {
+                Opacity = 0;
+                Hide();
+                notifyIcon1.Visible = true;
+            }
+            Opacity = 1;
+            ShowInTaskbar = true;
+            if (!args.Contains("--nostart"))
+                Start();
             Size workSize = new Size(Size.Width, Size.Height);
             button1.Size = new Size((workSize.Width - 26 - 26) / 2 - 26, button1.Height);
             button2.Size = new Size(button1.Size.Width, button2.Height);
             button2.Location = new Point(button1.Location.X + button1.Size.Width + 18, button2.Location.Y);
             button2.Location = new Point(console.Size.Width + console.Location.X - button2.Size.Width, button2.Location.Y);
+            UpdateNotifyContextMenu();
         }
         bool closing = false;
+        void UpdateNotifyContextMenu()
+        {
+            startToolStripMenuItem.Enabled = server != null ? !server.Running : true;
+            restartToolStripMenuItem.Enabled = server != null ? server.Running : false;
+            stopToolStripMenuItem.Enabled = server != null ? server.Running : false;
+            button1.Text = server != null ? (server.Running ? "Stop" : "Start") : "Stop";
+        }
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            if (server.Running)
+            if (server != null ? server.Running : false)
             {
                 closing = true;
                 server?.Shutdown();
@@ -161,15 +176,85 @@ namespace RemoteBrowserServer
             Hide();
         }
 
-        private void notifyIcon1_DoubleClick(object sender, EventArgs e)
-        {
-            notifyIcon1.Visible = false;
-            Show();
-        }
-
         private void button3_Click(object sender, EventArgs e)
         {
             console.Clear();
+        }
+
+        private void stopExitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            StopExit();
+        }
+
+        private void stopToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Shutdown();
+        }
+        void Restart()
+        {
+            Log("Server restarting...", Color.Blue, false);
+            server?.Shutdown();
+            for (int i = 0; i < monitorThreads.Count; i++)
+                monitorThreads[i].Abort();
+            monitorThreads.Clear();
+            server = new TCPServer(textBox1.Text, ushort.Parse(textBox2.Text));
+            server.AutoRelistenForMessages = false;
+            server.BeginReceiveOnConnection = false;
+            server.ClientConnected += Server_ClientConnected;
+            server.ClientDisconnected += Server_ClientDisconnected;
+            server.Start();
+            console.Log("\tDone", Color.Green);
+            UpdateNotifyContextMenu();
+        }
+        void Shutdown()
+        {
+            if (server.Running)
+            {
+                server?.Shutdown();
+                for (int i = 0; i < monitorThreads.Count; i++)
+                    monitorThreads[i].Abort();
+                monitorThreads.Clear();
+            }
+            UpdateNotifyContextMenu();
+        }
+        void Start()
+        {
+            server = new TCPServer(textBox1.Text, ushort.Parse(textBox2.Text));
+            server.AutoRelistenForMessages = false;
+            server.BeginReceiveOnConnection = false;
+            server.ClientConnected += Server_ClientConnected;
+            server.ClientDisconnected += Server_ClientDisconnected;
+            server.Start();
+            UpdateNotifyContextMenu();
+        }
+        void StopExit()
+        {
+            Shutdown();
+            Application.Exit();
+        }
+        private void restartToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Restart();
+        }
+
+        private void notifyIcon1_MouseDoubleClick(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                notifyIcon1.Visible = false;
+                Show();
+                BringToFront();
+            }
+        }
+
+        private void startToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Start();
+        }
+
+        private void eXitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            StopExit();
         }
     }
 }

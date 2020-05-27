@@ -11791,7 +11791,9 @@ namespace CSharpExtendedCommands
                         ServerSocket.BeginAccept(OnClientConnection, null);
                     }
                 }
+#pragma warning disable CS0067
                 public event EventHandler<ClientConnectionArgs> ClientConnectionRefused;
+#pragma warning restore CS0067
                 public delegate bool ClientConnectionHandler(object sender, ClientConnectionArgs e);
                 public event ClientConnectionHandler ClientTryConnect;
                 private class ASResult : IAsyncResult
