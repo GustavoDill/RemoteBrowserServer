@@ -22,6 +22,19 @@ namespace RemoteBrowserServer
 
         private void Form1_Load(object sender, EventArgs e)
         {
+            bool r = false;
+            foreach (var arg in Environment.GetCommandLineArgs())
+                if (arg.ToLower().Contains("port:"))
+                    textBox2.Text = arg.Substring("port:".Length);
+            foreach (var arg in Environment.GetCommandLineArgs())
+                if (arg.ToLower().Contains("server-ip:"))
+                {
+                    textBox1.Text = arg.Substring("server-ip:".Length);
+                    r = true;
+                    break;
+                }
+            if (r)
+                return;
             var ips = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
             foreach (var ip in ips.AddressList)
                 if (Regex.IsMatch(ip.ToString(), @"(192\.168|10\.0)\.0\.\d+"))
