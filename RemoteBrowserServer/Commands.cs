@@ -65,6 +65,17 @@ namespace RemoteBrowserServer
             Log($"Sent package to client {{Host: {requester.Ip} Port: {requester.Port}}} - Pacakge of System.byte[{package.Size}]", Color.Cyan);
             console.Log("");
         }
+        public static void GETFILESIZE(TCPClient requester, string file)
+        {
+            if (File.Exists(file))
+            {
+                var info = new FileInfo(file);
+                var size = info.Length.ToString("X16");
+                requester.SendPackage(size);
+            }
+            else
+                requester.SendPackage("ERROR_FILE_INEXISTENT");
+        }
         public static void RETRIEVEFILE(TCPClient requester, string file)
         {
             try
