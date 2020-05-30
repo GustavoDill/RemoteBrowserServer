@@ -23,6 +23,10 @@ namespace RemoteBrowserServer
             catch { }
         }
         public static ConsoleTextBox console;
+        public static void CLOSECONNECTION(TCPClient client)
+        {
+            Log($"Client has ended the connection {{Host: {client.Ip} Port: {client.Port}}}");
+        }
         public static void LISTDIRECTORY(TCPClient requester, string dir)
         {
             DirectoryInfo dirinfo;

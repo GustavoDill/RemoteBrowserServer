@@ -11360,6 +11360,15 @@ namespace CSharpExtendedCommands
                     }
                     catch { }
                 }
+                public TCPClient(string hostName, ushort port = 0, int addressListIndex = 0)
+                {
+                    Ip = Dns.GetHostAddresses(hostName)[addressListIndex];
+                    if (port != 0)
+                        Port = port;
+                    else
+                        Port = ushort.Parse(new Random().Next(888, int.Parse(ushort.MaxValue.ToString())).ToString());
+                    Setup();
+                }
                 public TCPClient(string ip, ushort port = 0)
                 {
                     if (!string.IsNullOrEmpty(ip) && Regex.IsMatch(ip, @"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"))
@@ -11472,14 +11481,59 @@ namespace CSharpExtendedCommands
                 {
                     ClientSocket.Send(package.RawData, 0, package.Size + 8, flags, out errorCode);
                 }
+                public byte[] ReceiveExact(int size)
+                {
+                    int mustReceive = size;
+                    byte[] buffer;
+                    List<byte> data = new List<byte>();
+                    while (mustReceive != 0)
+                    {
+                        buffer = new byte[mustReceive];
+                        var rec = ClientSocket.Receive(buffer, mustReceive, SocketFlags.None);
+                        mustReceive -= rec;
+                        if (rec != 0)
+                        {
+                            byte[] copy = new byte[rec];
+                            Array.Copy(buffer, copy, rec);
+                            data.AddRange(copy);
+                        }
+                    }
+                    return data.ToArray();
+                }
                 public TcpPackage ReceivePackage()
                 {
-                    byte[] buffer = new byte[8];
-                    ClientSocket.Receive(buffer, buffer.Length, SocketFlags.None);
-                    var size = Convert.ToInt32("0x" + Encoding.ASCII.GetString(buffer), 16);
-                    byte[] data = new byte[size];
-                    ClientSocket.Receive(data, size, SocketFlags.None);
-                    return new TcpPackage(data);
+                    byte[] buffer;
+                    int mustReceive = 8;
+                    List<byte> data = new List<byte>();
+                    while (mustReceive != 0)
+                    {
+                        buffer = new byte[mustReceive];
+                        var rec = ClientSocket.Receive(buffer, mustReceive, SocketFlags.None);
+                        mustReceive -= rec;
+                        if (rec != 0)
+                        {
+                            byte[] copy = new byte[rec];
+                            Array.Copy(buffer, copy, rec);
+                            data.AddRange(copy);
+                        }
+                    }
+                    string sizeData = Encoding.ASCII.GetString(data.ToArray());
+                    var size = Convert.ToInt32("0x" + sizeData, 16);
+                    data.Clear();
+                    mustReceive = size;
+                    while (mustReceive != 0)
+                    {
+                        buffer = new byte[mustReceive];
+                        var rec = ClientSocket.Receive(buffer, mustReceive, SocketFlags.None);
+                        mustReceive -= rec;
+                        if (rec != 0)
+                        {
+                            byte[] copy = new byte[rec];
+                            Array.Copy(buffer, copy, rec);
+                            data.AddRange(copy);
+                        }
+                    }
+                    return new TcpPackage(data.ToArray());
                 }
                 public string ReceiveString()
                 {
@@ -11549,6 +11603,15 @@ namespace CSharpExtendedCommands
             }
             public class TCPServer
             {
+                public TCPServer(string hostName, ushort port = 0, int addressListIndex = 0)
+                {
+                    Ip = Dns.GetHostAddresses(hostName)[addressListIndex];
+                    if (port != 0)
+                        Port = port;
+                    else
+                        Port = ushort.Parse(new Random().Next(888, int.Parse(ushort.MaxValue.ToString())).ToString());
+                    Setup();
+                }
                 public TCPServer(string ip, ushort port = 0)
                 {
                     if (!string.IsNullOrEmpty(ip) && Regex.IsMatch(ip, @"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"))
@@ -11655,6 +11718,10 @@ namespace CSharpExtendedCommands
                 public void SendPackageToClient(TCPClient client, TcpPackage package)
                 {
                     client.SendPackage(package);
+                }
+                public byte[] ReceiveExactFromClient(TCPClient client, int size)
+                {
+                    return client.ReceiveExact(size);
                 }
                 public TcpPackage ReceivePackageFromClient(TCPClient client)
                 {
@@ -22469,6 +22536,21 @@ namespace CSharpExtendedCommands
             public static IPAddress[] LocalAddressList
             {
                 get => System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName()).AddressList;
+            }
+            public static IPAddress ExternalIpAddress
+            {
+                get
+                {
+                    try
+                    {
+                        var req = new WebClient().DownloadString("http://ifconfig.me");
+                        if (IPAddress.TryParse(req, out IPAddress _))
+                            return IPAddress.Parse(req);
+                        else
+                            return null;
+                    }
+                    catch { return null; }
+                }
             }
             public static string ComputerHWID(bool Encrypted = false)
             {

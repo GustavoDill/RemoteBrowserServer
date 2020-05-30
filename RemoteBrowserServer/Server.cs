@@ -36,9 +36,7 @@ namespace RemoteBrowserServer
             if (r)
                 return;
             var ips = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
-            foreach (var ip in ips.AddressList)
-                if (Regex.IsMatch(ip.ToString(), @"(192\.168|10\.0)\.0\.\d+"))
-                    textBox1.Text = ip.ToString();
+            textBox1.Text = CSharpExtendedCommands.Info.ComputerInfo.ExternalIpAddress.ToString();
         }
         TCPServer server;
         private void button1_Click(object sender, EventArgs e)
