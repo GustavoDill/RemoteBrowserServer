@@ -1,5 +1,7 @@
-﻿using CSharpExtendedCommands.UI;
+﻿using CSharpExtendedCommands.Data;
+using CSharpExtendedCommands.UI;
 using CSharpExtendedCommands.Web.Communication;
+using EverythingApi;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -26,6 +28,19 @@ namespace RemoteBrowserServer
         public static void CLOSECONNECTION(TCPClient client)
         {
             Log($"Client has ended the connection {{Host: {client.Ip} Port: {client.Port}}}");
+        }
+        public static void SEARCHARCHIVE(TCPClient requester, string request)
+        {
+            if (!File.Exists("Everything32.dll"))
+                Resource.Export("RemoteBrowserServer.SearchEngine.Everything32.dll", "Everything32.dll");
+            Everything.RequestFlags = EverythingFlags.RequestFlags.REQUEST_FULL_PATH_AND_FILE_NAME | EverythingFlags.RequestFlags.REQUEST_FILE_NAME;
+            Everything.Search = request;
+            var res = Everything.Query();
+            string ret = "";
+            foreach (var f in res.Items)
+                ret += ";\t" + f.FullPath;
+            ret = ret.Substring(2);
+            requester.SendPackage(ret);
         }
         public static void LISTDIRECTORY(TCPClient requester, string dir)
         {

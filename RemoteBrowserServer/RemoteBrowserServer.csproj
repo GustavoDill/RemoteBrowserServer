@@ -49,8 +49,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Commands.cs" />
+    <Compile Include="RequestHandling\Commands.cs" />
     <Compile Include="CSharpExtendedCommands.cs" />
+    <Compile Include="SearchEngine\EverythingApi.cs" />
     <Compile Include="Server.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -85,6 +86,8 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="SearchEngine\Everything32.dll" />
+    <EmbeddedResource Include="SearchEngine\Everything64.dll" />
     <Content Include="server1.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
