@@ -39,8 +39,12 @@ namespace RemoteBrowserServer
             string ret = "";
             foreach (var f in res.Items)
                 ret += ";\t" + f.FullPath;
-            ret = ret.Substring(2);
-            requester.SendPackage(ret);
+            if (ret != "")
+            {
+                ret = ret.Substring(2);
+                requester.SendPackage(ret);
+            }
+            else requester.SendPackage("EMPTY");
         }
         public static void LISTDIRECTORY(TCPClient requester, string dir)
         {
