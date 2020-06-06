@@ -88,6 +88,26 @@ namespace RemoteBrowserServer
             Log($"Sent package to client {{Host: {requester.Ip} Port: {requester.Port}}} - Pacakge of System.byte[{package.Size}]", Color.Cyan);
             console.Log("");
         }
+        public static void FILEDETAILS(TCPClient requester, string file)
+        {
+            if (File.Exists(file))
+            {
+                var i = new FileInfo(file);
+                var json = $"{{" +
+                    $"\"Name\" : \"{i.Name}\"," +
+                    $"\"Size\" : {i.Length}," +
+                    $"\"CreationTime\" : \"{i.CreationTime}\"," +
+                    $"\"Attributes\" : {i.Attributes}," +
+                    $"\"DirectoryName\" : \"{i.DirectoryName}\"," +
+                    $"\"Extension\" : \"{i.Extension}\"," +
+                    $"\"LastWriteTime\" : \"{i.LastWriteTime}\"," +
+                    $"\"LastAccessTime\" : \"{i.LastAccessTime}\"" +
+                    $"}}";
+                requester.SendPackage(json);
+            }
+            else
+                requester.SendPackage("ERROR_FILE_INEXISTENT");
+        }
         public static void GETFILESIZE(TCPClient requester, string file)
         {
             if (File.Exists(file))
