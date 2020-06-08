@@ -1,4 +1,5 @@
 ﻿using CSharpExtendedCommands.Data;
+using CSharpExtendedCommands.Data.SimpleJSON;
 using CSharpExtendedCommands.UI;
 using CSharpExtendedCommands.Web.Communication;
 using EverythingApi;
@@ -6,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace RemoteBrowserServer
@@ -29,22 +31,37 @@ namespace RemoteBrowserServer
         {
             Log($"Client has ended the connection {{Host: {client.Ip} Port: {client.Port}}}");
         }
+        private static string GetJson(string name, string path, Type type)
+        {
+            return $"{{\"Name\" : \"{name}\", \"FullPath\" : \"{path}\", \"Type\" : \"{type.Name}\"}}";
+        }
         public static void SEARCHARCHIVE(TCPClient requester, string request)
         {
             if (!File.Exists("Everything32.dll"))
                 Resource.Export("RemoteBrowserServer.SearchEngine.Everything32.dll", "Everything32.dll");
             Everything.RequestFlags = EverythingFlags.RequestFlags.REQUEST_FULL_PATH_AND_FILE_NAME | EverythingFlags.RequestFlags.REQUEST_FILE_NAME;
             Everything.Search = request;
-            var res = Everything.Query();
-            string ret = "";
-            foreach (var f in res.Items)
-                ret += ";\t" + f.FullPath;
-            if (ret != "")
+            Everything.QueryW(true);
+            var tot = Everything.GetNumResults();
+            JSONNode json = JSON.Parse($"{{\"Items\" : []}}");
+            for (uint i = 0; i < tot; i++)
             {
-                ret = ret.Substring(2);
-                requester.SendPackage(ret);
+                StringBuilder fpath = null;
+                try
+                {
+                    fpath = new StringBuilder(Everything.MaxPathSize);
+                    Everything.GetResultFullPathName(i, fpath, (uint)Everything.MaxPathSize);
+                }
+                catch { }
+                Type type;
+                if (Directory.Exists(fpath.ToString()))
+                    type = typeof(DirectoryInfo);
+                else
+                    type = typeof(FileInfo);
+                json["Items"].Add(JSON.Parse(GetJson(Marshal.PtrToStringUni(Everything.GetResultFileName(i)), fpath.ToString().Replace("\\", ";"), type)));
             }
-            else requester.SendPackage("EMPTY");
+            requester.SendPackage(json.ToString());
+            Log($"Sent package to client {{Host: {requester.Ip} Port: {requester.Port}}} - Pacakge of System.byte[{json.ToString().Length}]", Color.Cyan);
         }
         public static void LISTDIRECTORY(TCPClient requester, string dir)
         {
@@ -94,11 +111,27 @@ namespace RemoteBrowserServer
             {
                 var i = new FileInfo(file);
                 var json = $"{{" +
+                    $"\"Type\" : \"File\"," +
                     $"\"Name\" : \"{i.Name}\"," +
                     $"\"Size\" : {i.Length}," +
                     $"\"CreationTime\" : \"{i.CreationTime}\"," +
-                    $"\"Attributes\" : {i.Attributes}," +
-                    $"\"DirectoryName\" : \"{i.DirectoryName}\"," +
+                    $"\"Attributes\" : {(int)i.Attributes}," +
+                    $"\"DirectoryName\" : \"{i.DirectoryName.Replace("\\", ";")}\"," +
+                    $"\"Extension\" : \"{i.Extension}\"," +
+                    $"\"LastWriteTime\" : \"{i.LastWriteTime}\"," +
+                    $"\"LastAccessTime\" : \"{i.LastAccessTime}\"" +
+                    $"}}";
+                requester.SendPackage(json);
+            }
+            else if (Directory.Exists(file))
+            {
+                var i = new DirectoryInfo(file);
+                var json = $"{{" +
+                    $"\"Type\" : \"Directory\"," +
+                    $"\"Name\" : \"{i.Name}\"," +
+                    $"\"CreationTime\" : \"{i.CreationTime}\"," +
+                    $"\"Attributes\" : {(int)i.Attributes}," +
+                    $"\"DirectoryName\" : \"{i.Parent.FullName.Replace("\\", ";")}\"," +
                     $"\"Extension\" : \"{i.Extension}\"," +
                     $"\"LastWriteTime\" : \"{i.LastWriteTime}\"," +
                     $"\"LastAccessTime\" : \"{i.LastAccessTime}\"" +
